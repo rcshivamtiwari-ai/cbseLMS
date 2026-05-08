@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+
+pre, code { font-family: 'Fira Code','Courier New', monospace; }
+
+/* Markdown */
+.prose h1 { font-family:'Poppins',sans-serif; font-weight:700; color:#0c4a6e; font-size:1.4rem; margin:1rem 0 .5rem; }
+.prose h2 { font-family:'Poppins',sans-serif; font-weight:600; color:#075985; font-size:1.15rem; margin:.8rem 0 .4rem; }
+.prose h3 { font-family:'Poppins',sans-serif; font-weight:600; color:#0369a1; font-size:1rem; margin:.6rem 0 .3rem; }
+.prose p { color:#334155; line-height:1.7; margin:.4rem 0; }
+.prose ul, .prose ol { padding-left:1.25rem; margin:.4rem 0; }
+.prose li { color:#334155; line-height:1.7; margin:.2rem 0; }
+.prose code { background:#f0f9ff; color:#0369a1; padding:2px 6px; border-radius:4px; font-size:.85em; }
+.prose pre { background:#0f172a; color:#e2e8f0; border-radius:8px; padding:1rem; overflow-x:auto; }
+.prose pre code { background:none; color:inherit; padding:0; }
+.prose table { width:100%; border-collapse:collapse; margin:.6rem 0; font-size:.875rem; }
+.prose th { background:#f0f9ff; color:#0369a1; padding:8px 12px; text-align:left; border-bottom:1px solid #bae6fd; font-weight:600; }
+.prose td { padding:7px 12px; border-bottom:1px solid #f1f5f9; color:#334155; }
+.prose strong { color:#0f172a; font-weight:600; }
+.prose blockquote { border-left:3px solid #0ea5e9; padding-left:1rem; color:#475569; font-style:italic; margin:.6rem 0; }
+
+/* Live indicator */
+@keyframes liveBlip { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.4)} }
+.live-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#ef4444; animation:liveBlip 1.5s ease-in-out infinite; margin-right:6px; }
+
+/* Card hover */
+.card-hover { transition:transform .18s ease, box-shadow .18s ease; }
+.card-hover:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.09); }
+
+/* Fade/slide animations */
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes slideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
+.animate-fade-in { animation:fadeIn .4s ease-in-out; }
+.animate-slide-up { animation:slideUp .35s ease-out; }
