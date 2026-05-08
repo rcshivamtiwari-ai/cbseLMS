@@ -1,7 +1,7 @@
 # 🏫 Chinmaya Vidyalaya LMS
 ## Complete Learning Management System — Class X & XII Computer Science
 
-**Built by Claude for Shivam Tiwari Sir, Chinmaya Vidyalaya NTPC Unchahar**
+**Built by  Shivam Tiwari, Chinmaya Vidyalaya NTPC Unchahar**
 
 ---
 
