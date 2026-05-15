@@ -5,30 +5,35 @@ import { useSession, signOut } from 'next-auth/react'
 import {
   LayoutDashboard, BookOpen, Code2, Database, ClipboardList,
   Video, Trophy, Users, Settings, LogOut, ChevronRight,
-  BarChart2, Brain, Cpu, Zap, MessageCircleQuestion
+  BarChart2, Brain, Cpu, Zap, MessageCircleQuestion,
+  MessageSquare, Shield, Star
 } from 'lucide-react'
 
 const studentNav = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/notes', icon: BookOpen, label: 'Study Notes' },
-  { href: '/practice', icon: Code2, label: 'Python Practice' },
-  { href: '/sql', icon: Database, label: 'SQL Practice' },
-  { href: '/daily-quiz', icon: Zap, label: 'Daily Quiz 🔥', highlight: true },
-  { href: '/doubt-solver', icon: MessageCircleQuestion, label: 'AI Doubt Solver ✨' },
-  { href: '/tests', icon: ClipboardList, label: 'Tests & Exams' },
-  { href: '/classes', icon: Video, label: 'Live Classes' },
-  { href: '/leaderboard', icon: Trophy, label: 'Leaderboard' },
-  { href: '/ai-tools', icon: Brain, label: 'AI Tools (Class X)' },
+  { href: '/dashboard',    icon: LayoutDashboard,        label: 'Dashboard' },
+  { href: '/notes',        icon: BookOpen,               label: 'Study Notes' },
+  { href: '/practice',     icon: Code2,                  label: 'Python Practice' },
+  { href: '/sql',          icon: Database,               label: 'SQL Practice' },
+  { href: '/daily-quiz',   icon: Zap,                    label: 'Daily Quiz 🔥',       highlight: true },
+  { href: '/doubt-solver', icon: MessageCircleQuestion,  label: 'AI Doubt Solver ✨',  highlight: true },
+  { href: '/pyq',          icon: Star,                   label: "Previous Year Q's 📋" },
+  { href: '/tests',        icon: ClipboardList,          label: 'Tests & Exams' },
+  { href: '/classes',      icon: Video,                  label: 'Live Classes' },
+  { href: '/remarks',      icon: MessageSquare,          label: 'My Remarks' },
+  { href: '/leaderboard',  icon: Trophy,                 label: 'Leaderboard' },
+  { href: '/ai-tools',     icon: Brain,                  label: 'AI Tools (Class X)' },
 ]
 
 const adminNav = [
-  { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/admin/students', icon: Users, label: 'Students' },
-  { href: '/admin/notes', icon: BookOpen, label: 'Notes & Topics' },
-  { href: '/admin/tests', icon: ClipboardList, label: 'Tests' },
-  { href: '/admin/classes', icon: Video, label: 'Live Classes' },
-  { href: '/admin/monitoring', icon: BarChart2, label: 'Monitoring' },
-  { href: '/admin/settings', icon: Settings, label: 'Settings' },
+  { href: '/admin',            icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/admin/students',   icon: Users,           label: 'Students' },
+  { href: '/admin/notes',      icon: BookOpen,        label: 'Notes & Topics' },
+  { href: '/admin/tests',      icon: ClipboardList,   label: 'Tests' },
+  { href: '/admin/classes',    icon: Video,           label: 'Live Classes' },
+  { href: '/admin/remarks',    icon: MessageSquare,   label: 'Student Remarks 📝', highlight: true },
+  { href: '/admin/teachers',   icon: Shield,          label: 'Teacher Accounts' },
+  { href: '/admin/monitoring', icon: BarChart2,       label: 'Monitoring' },
+  { href: '/admin/settings',   icon: Settings,        label: 'Settings' },
 ]
 
 export default function Sidebar() {
@@ -64,32 +69,27 @@ export default function Sidebar() {
             {session?.user?.name?.[0]?.toUpperCase() || '?'}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold truncate">{session?.user?.name}</p>
+            <p className="text-sm font-semibold truncate">{session?.user?.name || 'Loading...'}</p>
             <p className="text-brand-400 text-xs truncate">
-              {isAdmin
-                ? '👨‍🏫 Shivam Tiwari Sir'
-                : `Class ${session?.user?.class} • Roll ${session?.user?.rollNumber}`}
+              {isAdmin ? '👨‍🏫 Teacher' : `Class ${session?.user?.class} • Roll ${session?.user?.rollNumber}`}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Navigation */}
+      {/* Nav links */}
       <nav className="flex-1 p-3 overflow-y-auto space-y-0.5">
         {nav.map(({ href, icon: Icon, label, highlight }) => {
           const active = isActive(href)
           return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${
+            <Link key={href} href={href}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 active
                   ? 'bg-brand-700 text-white shadow'
                   : highlight
                     ? 'text-yellow-300 hover:bg-brand-800 hover:text-yellow-200'
                     : 'text-brand-300 hover:bg-brand-800 hover:text-white'
-              }`}
-            >
+              }`}>
               <Icon className="w-4 h-4 flex-shrink-0" />
               <span className="flex-1 truncate">{label}</span>
               {active && <ChevronRight className="w-3 h-3 opacity-50" />}
@@ -100,14 +100,12 @@ export default function Sidebar() {
 
       {/* Sign out */}
       <div className="p-3 border-t border-brand-800/60">
-        <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-brand-400 hover:bg-red-900/30 hover:text-red-300 transition-all"
-        >
+        <button onClick={() => signOut({ callbackUrl: '/login' })}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-brand-400 hover:bg-red-900/30 hover:text-red-300 transition-all">
           <LogOut className="w-4 h-4" />
           <span>Sign Out</span>
         </button>
-        <p className="text-center text-brand-700 text-xs mt-2">Made with ❤️ for students</p>
+        <p className="text-center text-brand-700 text-[10px] mt-2">Made with ❤️ for students of CV</p>
       </div>
     </aside>
   )
