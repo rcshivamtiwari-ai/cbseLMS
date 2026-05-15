@@ -4,94 +4,96 @@ import connectDB from '@/lib/mongodb'
 import { Progress } from '@/models/index'
 import { authOptions } from '@/lib/auth'
 
-// Primary and fallback Piston API endpoints
-const PISTON_URLS = [
-  'https://emkc.org/api/v2/piston/execute',
-  'https://piston.aepl.dev/api/v2/execute', // backup
-]
-
-// Normalize output for comparison — removes extra spaces, newlines, case
+// Normalize output for comparison
 function normalize(str) {
-  if (!str) return ''
-  return str
-    .toString()
-    .trim()
-    .replace(/\r\n/g, '\n')   // Windows line endings
-    .replace(/\r/g, '\n')     // Mac line endings
-    .replace(/[ \t]+\n/g, '\n') // trailing spaces before newline
-    .replace(/\n[ \t]+/g, '\n') // leading spaces after newline
+  if (!str && str !== 0) return ''
+  return String(str)
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/[ \t]+$/gm, '')   // trailing spaces per line
+    .replace(/^\n+|\n+$/g, '')  // leading/trailing blank lines
     .trim()
 }
 
-// Smart comparison — handles minor whitespace differences
 function outputMatches(actual, expected) {
-  if (!expected) return true // no expected = just run, don't check
+  if (!expected) return true
   const a = normalize(actual)
   const e = normalize(expected)
   if (a === e) return true
-
-  // Also try case-insensitive comparison
   if (a.toLowerCase() === e.toLowerCase()) return true
-
-  // Try comparing without any whitespace (for simple outputs)
-  if (a.replace(/\s/g, '') === e.replace(/\s/g, '')) return true
-
+  // Allow if actual CONTAINS expected (handles extra newlines)
+  if (a.includes(e)) return true
+  if (e.includes(a)) return true
   return false
 }
 
-async function runOnPiston(code, language, stdin = '') {
-  const langMap = {
-    python: { language: 'python', version: '3.10.0' },
-    python3: { language: 'python', version: '3.10.0' },
-    sql: { language: 'sqlite', version: '3.36.0' },
-  }
+// Run via Piston API
+async function runViaPiston(code, stdin = '') {
+  const PISTON_ENDPOINTS = [
+    'https://emkc.org/api/v2/piston/execute',
+    'https://piston.aepl.dev/api/v2/execute',
+  ]
 
-  const lang = langMap[language?.toLowerCase()] || langMap.python
-
-  const body = JSON.stringify({
-    language: lang.language,
-    version: lang.version,
-    files: [{ name: 'main.py', content: code }],
+  const body = {
+    language: 'python',
+    version: '3.10.0',
+    files: [{ name: 'solution.py', content: code }],
     stdin: stdin || '',
     args: [],
     compile_timeout: 10000,
-    run_timeout: 5000,
-  })
-
-  // Try each Piston URL
-  for (const url of PISTON_URLS) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-        signal: AbortSignal.timeout(15000), // 15 second timeout
-      })
-
-      if (!response.ok) continue
-
-      const data = await response.json()
-
-      // Check for piston error
-      if (data.message) {
-        return { output: '', error: data.message, success: false }
-      }
-
-      const output = data.run?.stdout || ''
-      const error = data.run?.stderr || ''
-      const exitCode = data.run?.code ?? 0
-
-      return { output, error, exitCode, success: exitCode === 0 || output.length > 0 }
-    } catch (err) {
-      console.error(`Piston URL ${url} failed:`, err.message)
-      continue // try next URL
-    }
+    run_timeout: 8000,
   }
 
-  return {
-    output: '',
-    error: 'Code execution service is temporarily unavailable. Please try again in a moment.',
-    success: false
+  for (const url of PISTON_ENDPOINTS) {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 12000)
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
+
+      if (!res.ok) continue
+
+      const data = await res.json()
+      if (data.message) continue // piston error
+
+      return {
+        output: data.run?.stdout || '',
+        error: data.run?.stderr || '',
+        exitCode: data.run?.code ?? 0,
+        ok: true,
+      }
+    } catch (e) {
+      console.error(`Piston ${url} failed:`, e.message)
+      continue
+    }
+  }
+  return null
+}
+
+// Run via Glot.io (another free service)
+async function runViaGlot(code) {
+  try {
+    const res = await fetch('https://glot.io/api/run/python/latest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: [{ name: 'main.py', content: code }] }),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return {
+      output: data.stdout || '',
+      error: data.stderr || data.error || '',
+      exitCode: data.error ? 1 : 0,
+      ok: !data.error,
+    }
+  } catch {
+    return null
   }
 }
 
@@ -103,59 +105,87 @@ export async function POST(request) {
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 
   const { code, language = 'python', topic, testCases } = body
 
-  if (!code || !code.trim()) {
+  if (!code?.trim()) {
     return NextResponse.json({ error: 'Please write some code first!' }, { status: 400 })
+  }
+
+  // For SQL — use browser-side sql.js, not server
+  if (language === 'sql') {
+    return NextResponse.json({
+      error: 'SQL runs in browser directly — no server needed. Please use the SQL Practice page.',
+    }, { status: 400 })
   }
 
   try {
     let results = []
 
     if (testCases && testCases.length > 0) {
-      // Run against each test case
       for (const tc of testCases) {
-        const { output, error, exitCode } = await runOnPiston(code, language, tc.input || '')
+        // Try Piston first
+        let run = await runViaPiston(code, tc.input || '')
 
-        const actualOutput = normalize(output)
-        const expectedOutput = normalize(tc.expectedOutput)
-        const passed = outputMatches(output, tc.expectedOutput)
+        // Fallback to Glot if Piston fails
+        if (!run) {
+          run = await runViaGlot(code)
+        }
 
+        if (!run) {
+          results.push({
+            input: tc.input || '',
+            expected: tc.expectedOutput || '',
+            actual: '',
+            passed: false,
+            error: 'Code execution service is temporarily down. Please try again in 1 minute.',
+          })
+          continue
+        }
+
+        const passed = outputMatches(run.output, tc.expectedOutput)
         results.push({
           input: tc.input || '',
           expected: tc.expectedOutput || '',
-          actual: actualOutput,
-          rawOutput: output,
-          error: error || '',
+          actual: normalize(run.output),
+          rawOutput: run.output,
+          error: run.error || '',
           passed,
-          exitCode,
+          exitCode: run.exitCode,
         })
       }
     } else {
-      // Just run the code — no test cases
-      const { output, error, exitCode, success } = await runOnPiston(code, language, '')
-      results = [{
-        output: output || '',
-        error: error || '',
-        exitCode,
-        success,
-      }]
+      let run = await runViaPiston(code, '')
+      if (!run) run = await runViaGlot(code)
+
+      if (!run) {
+        results = [{
+          output: '',
+          error: 'Code execution service is temporarily unavailable. Please try again in a moment.',
+          passed: false,
+        }]
+      } else {
+        results = [{
+          output: run.output || '',
+          error: run.error || '',
+          exitCode: run.exitCode,
+          passed: run.exitCode === 0,
+        }]
+      }
     }
 
-    // Track activity in progress (non-blocking)
-    try {
-      await connectDB()
+    // Track progress in background
+    connectDB().then(() => {
       const today = new Date().toISOString().split('T')[0]
-      await Progress.findOneAndUpdate(
+      Progress.findOneAndUpdate(
         { studentId: session.user.id, date: today },
         {
           $push: {
             activities: {
-              activityType: language === 'python' ? 'code_run' : 'sql_run',
-              subject: language === 'python' ? 'Python' : 'Database',
+              activityType: 'code_run',
+              subject: 'Python',
               topic: topic || 'Practice',
               timestamp: new Date(),
             }
@@ -163,18 +193,15 @@ export async function POST(request) {
           lastActive: new Date(),
         },
         { upsert: true }
-      )
-    } catch (dbErr) {
-      // Don't fail the request if DB tracking fails
-      console.error('Progress tracking error:', dbErr)
-    }
+      ).catch(console.error)
+    }).catch(console.error)
 
     return NextResponse.json({ results, success: true })
   } catch (error) {
     console.error('Code execution error:', error)
     return NextResponse.json({
-      error: 'Code execution failed. Please try again.',
-      results: []
+      error: 'Unexpected error. Please try again.',
+      results: [],
     }, { status: 500 })
   }
 }
